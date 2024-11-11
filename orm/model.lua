@@ -56,10 +56,20 @@ if DB.type == SQLITE then
     _connect = sql:connect(DB.name)
 
 elseif DB.type == MYSQL then
-    local luasql = require("luasql.mysql")
-    sql = luasql.mysql()
+    -- local luasql = require("luasql.mysql")
+    -- sql = luasql.mysql()
     print(DB.name, DB.username, DB.password, DB.host, DB.port)
-    _connect = sql:connect(DB.name, DB.username, DB.password, DB.host, DB.port)
+    local mysql = require("skynet.db.mysql")
+    _connect = mysql.connect(
+        {
+            host="127.0.0.1",
+            port=3307,
+            database="pkm",
+            user="root",
+            password="cjd159265",
+        }
+    )
+    -- _connect = sql:connect(DB.name, DB.username, DB.password, DB.host, DB.port)
 
 elseif DB.type == POSTGRESQL then
     local luasql = require("luasql.postgres")
@@ -97,57 +107,55 @@ db = {
     -- Execute SQL query
     execute = function (self, query)
         BACKTRACE(DEBUG, query)
-
-        local result = self.connect:execute(query)
+        
+        -- 使用 mysql.lua 中的 query 方法来执行 SQL 查询
+        local result, err = self.connect:query(query)
 
         if result then
-            return result
+            return result  -- 返回查询结果
         else
-            BACKTRACE(WARNING, "Wrong SQL query")
+            BACKTRACE(WARNING, "Wrong SQL query: " .. (err or "unknown error"))
+            return nil, err  -- 返回错误信息
         end
     end,
 
     -- Return insert query id
     insert = function (self, query)
-        local _cursor = self:execute(query)
-        return 1
+        local result, err = self:execute(query)  -- 使用 execute 方法执行插入
+        if not result then
+            return nil, err  -- 如果有错误，返回错误信息
+        end
+        return result.insert_id  -- 返回插入的记录 ID
     end,
 
-    -- get parced data
+    -- Get parsed data
     rows = function (self, query, own_table)
-        local _cursor = self:execute(query)
+        local result, err = self:execute(query)  -- 使用 execute 方法获取结果
         local data = {}
-        local current_row = {}
-        local current_table
-        local row
-
-        if _cursor then
-            row = _cursor:fetch({}, "a")
-
-            while row do
-                for colname, value in pairs(row) do
-                    current_table, colname = string.divided_into(colname, "_")
-
-                    if current_table == own_table.__tablename__ then
-                        current_row[colname] = value
-                    else
-                        if not current_row[current_table] then
-                            current_row[current_table] = {}
-                        end
-
-                        current_row[current_table][colname] = value
-                    end
-                end
-
-                table.insert(data, current_row)
-
-                current_row = {}
-                row = _cursor:fetch({}, "a")
-            end
-
+        if not result then
+            return nil, err  -- 如果执行失败，返回错误
         end
 
-        return data
+        for _, row in ipairs(result) do  -- 遍历结果集
+            local current_row = {}
+            for colname, value in pairs(row) do
+                local current_table, column_name = string.divided_into(colname, "_")
+
+                if current_table == own_table.__tablename__ then
+                    current_row[column_name] = value  -- 填充当前行的对应列
+                else
+                    if not current_row[current_table] then
+                        current_row[current_table] = {}
+                    end
+
+                    current_row[current_table][column_name] = value  -- 填充外部表的列
+                end
+            end
+
+            table.insert(data, current_row)  -- 将当前行插入数据集
+        end
+
+        return data  -- 返回解析后的数据
     end
 }
 
