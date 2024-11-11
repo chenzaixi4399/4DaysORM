@@ -56,19 +56,24 @@ if DB.type == SQLITE then
     _connect = sql:connect(DB.name)
 
 elseif DB.type == MYSQL then
+    -- 原 luasql 
     -- local luasql = require("luasql.mysql")
     -- sql = luasql.mysql()
+
+    -- 改为 skynet.db.mysql
     print(DB.name, DB.username, DB.password, DB.host, DB.port)
     local mysql = require("skynet.db.mysql")
     _connect = mysql.connect(
         {
-            host="127.0.0.1",
-            port=3307,
-            database="pkm",
-            user="root",
-            password="cjd159265",
+            host = DB.host,
+            port = DB.port,
+            database = DB.name,
+            user = DB.username,
+            password = DB.password,
         }
     )
+    
+    -- 原 luasql 
     -- _connect = sql:connect(DB.name, DB.username, DB.password, DB.host, DB.port)
 
 elseif DB.type == POSTGRESQL then
